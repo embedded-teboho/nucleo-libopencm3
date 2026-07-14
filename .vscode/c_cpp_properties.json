@@ -3,7 +3,7 @@
     {
       "name": "STM32",
       "includePath": [
-        "${workspaceFolder}/**",
+        "${workspaceFolder}/projects/**",
         "${workspaceFolder}/libopencm3/include"
       ],
       "defines": [
