@@ -1,6 +1,6 @@
 BINARY   = main
 OPENCM3_DIR = libopencm3
-DEVICE   = stm32f401retx
+DEVICE   = stm32f401re
 
 OBJS     = src/main.o
 

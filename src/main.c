@@ -1,5 +1,6 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
+#include <libopencm3/cm3/systick.h>
 
 static void delay(volatile uint32_t n) {
     while (n--) __asm__("nop");

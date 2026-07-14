@@ -9,6 +9,9 @@
       "type": "cortex-debug",
       "servertype": "openocd",
       "configFiles": ["openocd.cfg"],
+      "device": "STM32F401RE",
+      "svdFile": "path/to/STM32F401.svd",
+      "showDevDebugOutput": "raw",
       "preLaunchTask": "build"
     }
   ]

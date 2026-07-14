@@ -1,0 +1,20 @@
+{
+  "configurations": [
+    {
+      "name": "STM32",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/libopencm3/include"
+      ],
+      "defines": [
+        "STM32F4", 
+        "STM32F401RE"
+    ],
+      "compilerPath": "arm-none-eabi-gcc",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "gcc-arm"
+    }
+  ],
+  "version": 4
+}
