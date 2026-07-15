@@ -16,8 +16,10 @@ all: $(BINARY).elf
 include $(OPENCM3_DIR)/mk/genlink-rules.mk
 include $(OPENCM3_DIR)/mk/gcc-rules.mk
 
+OPENOCD = "/c/ProgramData/chocolatey/lib/openocd/tools/install/bin/openocd.exe"
+
 flash: $(BINARY).elf
-	openocd -f openocd.cfg -c "program $(BINARY).elf verify reset exit"
+	$(OPENOCD) -f openocd.cfg -c "program $(BINARY).elf verify reset exit"
 
 clean:
 	rm -f projects/$(PROJECT)/*.o $(BINARY).elf $(BINARY).bin $(BINARY).map generated.$(DEVICE).ld
