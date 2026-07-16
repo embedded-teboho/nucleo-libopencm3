@@ -36,7 +36,7 @@ static void usart_setup(void) {
 
 }
 
-static void led_setup(void) {
+void led_setup(void) {
     // Enable the GPIOA clock
     rcc_periph_clock_enable(RCC_GPIOA);
 
@@ -51,7 +51,7 @@ static void delay(volatile uint32_t count) {
     }
 }
 
-static void usart2_isr(void){
+void usart2_isr(void){
     if(usart_get_flag(USART2, USART_SR_RXNE)) 
     {
         uint16_t byte = usart_recv(USART2); // Read the received byte
