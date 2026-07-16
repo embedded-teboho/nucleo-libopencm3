@@ -1,13 +1,17 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
+#include <libopencm3/cm3/nvic.h>
+#include <libopencm3/cm3/systick.h>
+#include <libopencm3/stm32/exti.h>
 
 #define UART_BAUDRATE 9600
 #define UART_PORT GPIOA
 #define UART_TX_PIN GPIO2
 #define UART_RX_PIN GPIO3
+#define GPIO_LED_PIN GPIO5
 
-void usart_setup(void) {
+static void usart_setup(void) {
     // Enable the USART2 clock
     rcc_periph_clock_enable(RCC_USART2);    // Enable clock for USART2
     rcc_periph_clock_enable(RCC_GPIOA);  // Enable clock for GPIOA
@@ -32,19 +36,42 @@ void usart_setup(void) {
 
 }
 
-int main(void) {
+static void led_setup(void) {
+    // Enable the GPIOA clock
     rcc_periph_clock_enable(RCC_GPIOA);
-    gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO5);
 
+    // Configure GPIO pin for led (e.g., PA5)
+    gpio_mode_setup(UART_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO_LED_PIN);
+}
+
+static void delay(volatile uint32_t count) {
+    for(volatile uint32_t i = 0; i < count; i++) 
+    {
+        __asm__("nop");  //Do nothing
+    }
+}
+
+static void usart2_isr(void){
+    if(usart_get_flag(USART2, USART_SR_RXNE)) 
+    {
+        uint16_t byte = usart_recv(USART2); // Read the received byte
+        usart_send_blocking(USART2, byte); // Echo the received byte back
+        gpio_toggle(GPIOA, GPIO5);
+    }
+
+}
+
+int main(void) {
+    led_setup();
     usart_setup();
+    
+    gpio_toggle(GPIOA, GPIO5);
+    // Enable the USART2 interrupt in the NVIC
+    nvic_enable_irq(NVIC_USART2_IRQ);
+    // Enable the USART2 receive interrupt
+    usart_enable_rx_interrupt(USART2);
+    
     while (1) {
-        uint8_t received_data = usart_recv_blocking(USART2); // Wait for data to be received
-        gpio_toggle(GPIOA, GPIO5);
-
-        for (volatile int i = 0; i < 500000; i++);
-
-        usart_send_blocking(USART2, received_data);
-
-        gpio_toggle(GPIOA, GPIO5);
+        // Do nothing, wait for interrupts
     }
 }
