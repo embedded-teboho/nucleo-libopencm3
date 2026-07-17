@@ -52,7 +52,7 @@ static void delay(volatile uint32_t count) {
 }
 
 void usart2_isr(void){
-    if(usart_get_flag(USART2, USART_SR_RXNE)) 
+    if(usart_get_flag(USART2, USART_SR_RXNE))  // check SR: has a byte arrived?
     {
         uint16_t byte = usart_recv(USART2); // Read the received byte
         usart_send_blocking(USART2, byte); // Echo the received byte back
