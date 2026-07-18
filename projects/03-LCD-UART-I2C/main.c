@@ -9,10 +9,10 @@
 
 #define I2C_ADDR ((uint8_t)0x27) // I2C address of the LCD 
 
-#define LCD_BACKLIGHT (0x08)
-#define LCD_EN        (0x04)
-#define LCD_RW        (0x02)
-#define LCD_RS        (0x01)
+// #define LCD_BACKLIGHT (0x08)
+// #define LCD_EN        (0x04)
+// #define LCD_RW        (0x02)
+// #define LCD_RS        (0x01)
 
 #define UART_TX_PIN (GPIO2)
 #define UART_RX_PIN (GPIO3)
@@ -27,7 +27,79 @@ static volatile bool led_is_on = false;
 #define SYSTICK_FREQ (1000)
 #define LED_ON_DURATION_MS (200)   // how long the LED stays lit per byte received
 
-static void i2c_setup(void){
+static void delay(uint32_t value)
+{
+  for (uint32_t i = 0; i < value; i++)
+  {
+    __asm__("nop"); /* Do nothing. */
+  }
+}
+
+void lcd_send_command(char cmd)
+{
+    char data_u = (cmd & 0xF0);             //Upper Nibble
+    char data_l = ((cmd << 4)& 0xF0);      //Lower Nibble
+
+    uint8_t data_t[4];
+    data_t[0] = data_u | 0x0C;    //EN=1, RS=0
+    data_t[1] = data_u | 0x08;    //EN=0, RS=0
+    data_t[2] = data_l | 0x0C;    //EN=1, RS=0
+    data_t[3] = data_l | 0x08;    //EN=0, RS=0
+
+    i2c_transfer7(I2C1,I2C_ADDR,(uint8_t*)data_t,4,NULL,0);
+}
+
+void lcd_send_data(char data)
+{
+    char data_u = (data & 0xF0);             //Upper Nibble
+    char data_l = ((data << 4)& 0xF0);      //Lower Nibble
+
+    uint8_t data_t[4];
+    data_t[0] = data_u | 0x0D;    //EN=1, RS=1
+    data_t[1] = data_u | 0x09;    //EN=0, RS=1
+    data_t[2] = data_l | 0x0D;    //EN=1, RS=1
+    data_t[3] = data_l | 0x09;    //EN=0, RS=1
+
+    i2c_transfer7(I2C1,I2C_ADDR,(uint8_t*)data_t,4,NULL,0);
+}
+
+void lcd_init(void)
+{
+    lcd_send_command(0x02); // Initialize LCD in 4-bit mode
+    delay(1000); // Wait for the LCD to initialize
+    lcd_send_command(0x28); // Function set: 2 lines, 5x8 dots
+    delay(1000);
+    lcd_send_command(0x0C); // Display on, cursor off
+    delay(1000);
+    lcd_send_command(0x06); // Entry mode set: increment cursor
+    delay(1000);
+    lcd_send_command(0x01); // Clear display
+    delay(1000);
+}
+
+void lcd_send_string(char *str)
+{
+    while (*str) {
+        lcd_send_data(*str++);
+    }
+}
+
+void lcd_put_cur(int row, int col)
+{
+    switch(row)
+    {
+        case 0:
+            col |= 0x80;
+            break;
+        case 1:
+            col |= 0xC0;
+            break;
+    }
+    lcd_send_command(col);
+}
+
+static void i2c_setup(void)
+{
     gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, I2C1_SDA_PIN | I2C1_SCL_PIN);
     gpio_set_output_options(GPIOB,GPIO_OTYPE_OD,GPIO_OSPEED_50MHZ,I2C1_SDA_PIN | I2C1_SCL_PIN);
     gpio_set_af(GPIOB, GPIO_AF4, I2C1_SDA_PIN | I2C1_SCL_PIN);
@@ -39,8 +111,8 @@ static void i2c_setup(void){
     i2c_peripheral_enable(i2c);
 }
 
-
-static void systick_setup(void){
+static void systick_setup(void)
+{
     // systick_set_clocksource(STK_CSR_CLKSOURCE_AHB);
     // systick_set_reload(rcc_ahb_frequency / 1000 - 1); // 1ms tick
 
@@ -50,11 +122,13 @@ static void systick_setup(void){
     systick_interrupt_enable();
 }
 
-void sys_tick_handler(void) {
+void sys_tick_handler(void) 
+{
     system_millis++;
 }
 
-void rcc_setup(void){
+void rcc_setup(void)
+{
     rcc_periph_clock_enable(RCC_I2C1);
     rcc_periph_clock_enable(RCC_USART2);
     rcc_periph_clock_enable(RCC_GPIOA);
@@ -64,7 +138,8 @@ void rcc_setup(void){
      rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_3V3_84MHZ]);
 }
 
-static void usart2_setup(void) {
+static void usart2_setup(void) 
+{
     gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, UART_RX_PIN);
     gpio_set_af(GPIOA, GPIO_AF7, UART_RX_PIN);
 
@@ -79,28 +154,35 @@ static void usart2_setup(void) {
 
 }
 
-static void gpio_setup(void) {
+static void gpio_setup(void) 
+{
     gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO5);
 }
 
-void usart2_isr(void){
+void usart2_isr(void)
+{
     if(usart_get_flag(USART2,USART_SR_RXNE))  // check SR: has a byte arrived?
     {
         uint16_t byte = usart_recv(USART2); // Read the received byte
         // usart_recv(USART2);   //Consume the bye (clears RXNE)
-        i2c_transfer7(I2C1,I2C_ADDR,(uint8_t*)&byte,1,NULL,0); // Send the byte to the LCD via I2C
+        lcd_send_data((char)byte); // Send the byte to the LCD via I2C
         gpio_set(GPIOA, GPIO5);    // Turn on the LED on PA5
         led_on_since = system_millis;  // Record the time the LED was turned on
         led_is_on = true;   
     }
 }
 
-int main(void) {
+int main(void) 
+{
     rcc_setup();
     systick_setup();
     gpio_setup();
     usart2_setup();
     i2c_setup();
+    lcd_init();
+    lcd_send_command(0x01);   // Clear Display
+    delay(1000);               // Clear needs time to actually execute — same timing concern as in lcd_init()
+    lcd_put_cur(0, 0);         // reset cursor to top-left after clearing
 
     nvic_enable_irq(NVIC_USART2_IRQ);
     // nvic_enable_irq(NVIC_I2C1_EV_IRQ);

@@ -10,7 +10,7 @@ time.sleep(0.5)
 
 # Send command to STM32 to display text on LCD
 try:
-    message = "HELLO\n"
+    message = "HELLO STM32\n"
     ser.write(message.encode('utf-8'))
     print (f"Sent message: {message.strip()}")
     
