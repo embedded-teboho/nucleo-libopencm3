@@ -14,10 +14,12 @@
 #define UART_RX_PIN (GPIO3)
 #define I2C1_SDA_PIN (GPIO9)              //I2C1_SDA
 #define I2C1_SCL_PIN (GPIO8)              //I2C1_SCL
+#define EXTI_BUTTON_SOURCE (EXTI13) // EXTI line for the user button
 
 static volatile uint32_t system_millis = 0;
 static volatile uint32_t led_on_since = 0;
 static volatile bool led_is_on = false;
+static volatile bool clear_requested = false;
 
 #define CPU_FREQ (84000000)
 #define SYSTICK_FREQ (1000)
@@ -152,6 +154,7 @@ void rcc_setup(void)
     rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_clock_enable(RCC_GPIOB);
     rcc_periph_clock_enable(RCC_GPIOC);
+    rcc_periph_clock_enable(RCC_SYSCFG); /* For EXTI. */
     // rcc_clock_setup_pll(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
 
      rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_3V3_84MHZ]);
@@ -192,6 +195,14 @@ void usart2_isr(void)
     }
 }
 
+void exti15_10_isr(void)
+{
+    if(exti_get_flag_status(EXTI_BUTTON_SOURCE)) {
+        exti_reset_request(EXTI_BUTTON_SOURCE); // Clear the EXTI flag
+        clear_requested = true; // Set the flag to request clearing the LCD
+    }
+}
+
 int main(void) 
 {
     rcc_setup();
@@ -206,6 +217,10 @@ int main(void)
 
     nvic_enable_irq(NVIC_USART2_IRQ);
     nvic_enable_irq(NVIC_EXTI15_10_IRQ);
+    exti_select_source(EXTI_BUTTON_SOURCE, GPIOC);
+    // Trigger selection
+    exti_set_trigger(EXTI_BUTTON_SOURCE, EXTI_TRIGGER_FALLING);
+    exti_enable_request(EXTI_BUTTON_SOURCE);
     // nvic_enable_irq(NVIC_I2C1_EV_IRQ);
     // i2c_enable_interrupt(I2C1, I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
     usart_enable_rx_interrupt(USART2);
@@ -215,10 +230,17 @@ int main(void)
             gpio_clear(GPIOA, GPIO5); // Turn off the LED after the duration
             led_is_on = false;
         }
-        if (gpio_get(GPIOC, USER_BTN) == 0) { // Check if the user button is pressed (active low)
-            lcd_send_command(0x01);   // Clear Display
-            delay_ms(1000);         
-            lcd_put_cur(0, 0);         // reset cursor to top-left after clearing
+
+        if (clear_requested) {
+            lcd_send_command(0x01);
+            delay_ms(2);
+            lcd_put_cur(0, 0);
+            clear_requested = false;
         }
+        // if (gpio_get(GPIOC, USER_BTN) == 0) { // Check if the user button is pressed (active low)
+        //     lcd_send_command(0x01);   // Clear Display
+        //     delay_ms(1);         
+        //     lcd_put_cur(0, 0);         // reset cursor to top-left after clearing
+        // }
     }
 }
