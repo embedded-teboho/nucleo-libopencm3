@@ -9,11 +9,7 @@
 
 #define I2C_ADDR ((uint8_t)0x27) // I2C address of the LCD 
 
-// #define LCD_BACKLIGHT (0x08)
-// #define LCD_EN        (0x04)
-// #define LCD_RW        (0x02)
-// #define LCD_RS        (0x01)
-
+#define USER_BTN (GPIO13)  // PC13
 #define UART_TX_PIN (GPIO2)
 #define UART_RX_PIN (GPIO3)
 #define I2C1_SDA_PIN (GPIO9)              //I2C1_SDA
@@ -27,12 +23,20 @@ static volatile bool led_is_on = false;
 #define SYSTICK_FREQ (1000)
 #define LED_ON_DURATION_MS (200)   // how long the LED stays lit per byte received
 
-static void delay(uint32_t value)
+static void delay_ms(uint32_t ms)
 {
-  for (uint32_t i = 0; i < value; i++)
-  {
-    __asm__("nop"); /* Do nothing. */
-  }
+    uint32_t start = system_millis;
+    while ((system_millis - start) < ms) {
+        __asm__("nop");
+    }
+}
+
+static void lcd_write_nibble(uint8_t nibble_positioned)
+{
+    uint8_t data_t[2];
+    data_t[0] = nibble_positioned | 0x0C;   // EN=1, RS=0, backlight on
+    data_t[1] = nibble_positioned | 0x08;   // EN=0, RS=0, backlight on
+    i2c_transfer7(I2C1, I2C_ADDR, data_t, 2, NULL, 0);
 }
 
 void lcd_send_command(char cmd)
@@ -65,16 +69,30 @@ void lcd_send_data(char data)
 
 void lcd_init(void)
 {
-    lcd_send_command(0x02); // Initialize LCD in 4-bit mode
-    delay(1000); // Wait for the LCD to initialize
-    lcd_send_command(0x28); // Function set: 2 lines, 5x8 dots
-    delay(1000);
-    lcd_send_command(0x0C); // Display on, cursor off
-    delay(1000);
-    lcd_send_command(0x06); // Entry mode set: increment cursor
-    delay(1000);
-    lcd_send_command(0x01); // Clear display
-    delay(1000);
+    delay_ms(50);         
+
+    lcd_write_nibble(0x30);
+    delay_ms(5);             
+
+    lcd_write_nibble(0x30); 
+    delay_ms(1);             
+
+    lcd_write_nibble(0x30); 
+    delay_ms(1);
+
+    lcd_write_nibble(0x20); 
+    delay_ms(1);
+
+    lcd_send_command(0x28); // Function set: 4-bit, 2 lines, 5x8 dots
+    delay_ms(1);
+    lcd_send_command(0x08); // Clear display
+    delay_ms(1);
+    lcd_send_command(0x01); 
+    delay_ms(2);             
+    lcd_send_command(0x06); 
+    delay_ms(1);
+    lcd_send_command(0x0C); // Display on, cursor off, blink off
+    delay_ms(1);
 }
 
 void lcd_send_string(char *str)
@@ -133,6 +151,7 @@ void rcc_setup(void)
     rcc_periph_clock_enable(RCC_USART2);
     rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_clock_enable(RCC_GPIOC);
     // rcc_clock_setup_pll(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
 
      rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_3V3_84MHZ]);
@@ -157,6 +176,7 @@ static void usart2_setup(void)
 static void gpio_setup(void) 
 {
     gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO5);
+    gpio_mode_setup(GPIOC, GPIO_MODE_INPUT, GPIO_PUPD_NONE, USER_BTN);
 }
 
 void usart2_isr(void)
@@ -180,11 +200,12 @@ int main(void)
     usart2_setup();
     i2c_setup();
     lcd_init();
-    lcd_send_command(0x01);   // Clear Display
-    delay(1000);               // Clear needs time to actually execute — same timing concern as in lcd_init()
-    lcd_put_cur(0, 0);         // reset cursor to top-left after clearing
+    // lcd_send_command(0x01);   // Clear Display
+    // delay_ms(1000);               
+    // lcd_put_cur(0, 0);         // reset cursor to top-left after clearing
 
     nvic_enable_irq(NVIC_USART2_IRQ);
+    nvic_enable_irq(NVIC_EXTI15_10_IRQ);
     // nvic_enable_irq(NVIC_I2C1_EV_IRQ);
     // i2c_enable_interrupt(I2C1, I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
     usart_enable_rx_interrupt(USART2);
@@ -193,6 +214,11 @@ int main(void)
         if (led_is_on && (system_millis - led_on_since >= LED_ON_DURATION_MS)) {
             gpio_clear(GPIOA, GPIO5); // Turn off the LED after the duration
             led_is_on = false;
+        }
+        if (gpio_get(GPIOC, USER_BTN) == 0) { // Check if the user button is pressed (active low)
+            lcd_send_command(0x01);   // Clear Display
+            delay_ms(1000);         
+            lcd_put_cur(0, 0);         // reset cursor to top-left after clearing
         }
     }
 }
