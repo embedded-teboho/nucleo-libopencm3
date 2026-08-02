@@ -7,10 +7,10 @@
 #include <stdbool.h>
 
 #define GOAL_FREQUENCY (2)                                    //10ms represented as 100Hz                  
-#define TIMER_CLOCK (rcc_apb1_frequency * 2)                    //F_timer   (CK_PSC)
-#define COUNTER_CLOCK (1000000)                                 //F_counter (CK_CNT)
-#define TIMER_PRESCALER (TIMER_CLOCK / COUNTER_CLOCK - 1)       //PSC
-#define TIMER_PERIOD (COUNTER_CLOCK / GOAL_FREQUENCY - 1)       //ARR
+#define TIMER_CLOCK (rcc_apb1_frequency * 2)                  //F_timer   (CK_PSC)
+#define COUNTER_CLOCK (1000000)                               //F_counter (CK_CNT)
+#define TIMER_PRESCALER (TIMER_CLOCK / COUNTER_CLOCK - 1)     //PSC
+#define TIMER_PERIOD (COUNTER_CLOCK / GOAL_FREQUENCY - 1)     //ARR
 
 #define GPIO_LED_PIN GPIO5
 #define GPIO_LED_PORT GPIOA
@@ -19,9 +19,20 @@
 static void rcc_setup(void){
     rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_3V3_84MHZ]);
     rcc_periph_clock_enable(RCC_GPIOA);
-    rcc_periph_clock_enable(RCC_TIM2);              //Enable clock for TIM2
-    rcc_periph_reset_pulse(RST_TIM2);              //Reset TIM2 to default values
+    rcc_periph_clock_enable(RCC_TIM2);           //Enable clock for TIM2
+    rcc_periph_reset_pulse(RST_TIM2);            //Reset TIM2 to default values
+    rcc_periph_clock_enable(RCC_PWR);            //Enable clock for PWR
 }
+
+void rtc_get_time(uint8_t *hours, uint8_t *minutes, uint8_t *seconds){
+
+    uint32_t tr = RTC_TR; // Read the RTC_TR register
+
+    *hours = ((tr >> 20) & 0x3) * 10 + ((tr >> 16) & 0xF);          //Extract hours from RTC_TR register
+    *minutes = ((tr >> 12) & 0x7) * 10 + ((tr >> 8) & 0xF);         //Extract minutes from RTC_TR register
+    *seconds = ((tr >> 4) & 0x7) * 10 + ((tr >> 0) & 0xF);          //Extract seconds from RTC_TR register
+}
+
 
 static void rtc_setup(void){
     pwr_disable_backup_domain_write_protect();
@@ -29,19 +40,19 @@ static void rtc_setup(void){
     rcc_wait_for_osc_ready(RCC_LSE);
 
     //Select LSE as RTC clock source
-    RCC_BDCR |= (1<<8);                 //bit 8 = 1
-    RCC_BDCR &= ~(1<<9);                //bit 9 = 0. Together with bit 8, this selects LSE as RTC clock source
-    RCC_BDCR |= (1<<15);                //Enable RTC clock
+    RCC_BDCR |= (1<<8);                         //bit 8 = 1
+    RCC_BDCR &= ~(1<<9);                        //bit 9 = 0. Together with bit 8, this selects LSE as RTC clock source
+    RCC_BDCR |= (1<<15);                        //Enable RTC clock
 
-    rtc_unlock();                       //Disable write protection for RTC registers
-    rtc_wait_for_synchro();             //Wait for RTC registers to synchronize with APB
-    rtc_set_init_flag();                    //Set initialization flag to enter initialization mode
-    while((RTC_ISR & (1<<6)) != (1<<6));        //Wait for initialization mode to be entered
-    rtc_set_prescaler(255, 127);                 //Set RTC prescaler to get 1Hz clock
-    rtc_clear_init_flag();                  //Clear initialization flag to exit initialization mode
-    while((RTC_ISR & (1<<6)) == (1<<6));        //Wait for initialization mode to be exited
-    rtc_lock();                         //Enable write protection for RTC registers
-    pwr_disable_backup_domain_write_protect();                       //Disable backup domain write protection
+    rtc_unlock();                                                       //Disable write protection for RTC registers
+    rtc_wait_for_synchro();                                             //Wait for RTC registers to synchronize with APB
+    rtc_set_init_flag();                                                //Set initialization flag to enter initialization mode
+    while((RTC_ISR & (1<<6)) != (1<<6));                                //Wait for initialization mode to be entered
+    rtc_set_prescaler(255, 127);                                        //Set RTC prescaler to get 1Hz clock
+    rtc_clear_init_flag();                                              //Clear initialization flag to exit initialization mode
+    while((RTC_ISR & (1<<6)) == (1<<6));                                //Wait for initialization mode to be exited
+    rtc_lock();                                                         //Enable write protection for RTC registers
+    pwr_disable_backup_domain_write_protect();                          //Disable backup domain write protection
 }
 
 static void gpio_setup(void){
@@ -64,11 +75,6 @@ static void timer_setup(void){
     timer_enable_counter(TIM2);
 }
 
-static void nvic_setup(void)
-{
-    nvic_enable_irq(NVIC_RTC_WKUP_IRQ);
-    nvic_set_priority(NVIC_RTC_WKUP_IRQ, 0);
-}
 
 void tim2_isr(void){
     if(timer_get_flag(TIM2, TIM_SR_UIF)){
@@ -80,11 +86,14 @@ int main(void){
     rcc_setup();
     gpio_setup();
     timer_setup();
-    nvic_setup();
     rtc_setup();
 
     while(1){
-        // Should not be here
+        if(rtc_get_wakeup_flag()){
+            rtc_clear_wakeup_flag();
+            uint8_t hours, minutes, seconds;
+            rtc_get_time(&hours, &minutes, &seconds);
+        }
     }
     
 }
