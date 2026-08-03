@@ -113,7 +113,7 @@ int main(void){
     gpio_setup();
     timer_setup();
     rtc_setup();
-    gpio_set(GPIO_LED_PORT, GPIO6);   // or any pin, just needs to be observably different from TIM2's toggling
+    gpio_set(GPIO_LED_PORT, GPIO6);   
     usart2_setup();
     
     uint8_t last_seconds = 0xFF;   
