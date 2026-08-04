@@ -9,12 +9,12 @@
 
 #define I2C_ADDR ((uint8_t)0x27) // I2C address of the LCD 
 
-#define USER_BTN (GPIO13)  // PC13
+#define USER_BTN (GPIO13)                       // PC13
 #define UART_TX_PIN (GPIO2)
 #define UART_RX_PIN (GPIO3)
-#define I2C1_SDA_PIN (GPIO9)              //I2C1_SDA
-#define I2C1_SCL_PIN (GPIO8)              //I2C1_SCL
-#define EXTI_BUTTON_SOURCE (EXTI13) // EXTI line for the user button
+#define I2C1_SDA_PIN (GPIO9)                    //I2C1_SDA
+#define I2C1_SCL_PIN (GPIO8)                    //I2C1_SCL
+#define EXTI_BUTTON_SOURCE (EXTI13)             // EXTI line for the user button
 
 static volatile uint32_t system_millis = 0;
 static volatile uint32_t led_on_since = 0;
